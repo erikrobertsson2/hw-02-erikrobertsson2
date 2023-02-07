@@ -1,6 +1,6 @@
 ---
 title: "HW 02"
-author: "INSERT YOUR NAME HERE"
+author: "Erik Robertsson"
 format: html
 toc: true
 ---
@@ -9,7 +9,7 @@ toc: true
 
 ```{r}
 #| label: label-me-1
-
+data
 ```
 
 ## 2 - Foreign Connected PACs
