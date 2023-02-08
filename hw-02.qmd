@@ -4,25 +4,134 @@ author: "Erik Robertsson"
 format: html
 toc: true
 ---
+```{r}
+library(ggplot2)
+library(ggridges)
+library(tidyverse)
+library(openintro)
+library(dsbox)
+library(openintro)
+library(glue)
+library(dsbox)
+library(palmerpenguins)
+library(janitor)
+```
 
 ## 1 - A new day, a new plot, a new geom
 
 ```{r}
-#| label: label-me-1
-data
+data(edibnb)
+edibnb_ordered_by_med <- edibnb |>
+  group_by(neighbourhood) |>
+  summarize(median = median(review_scores_rating)) |>
+  arrange(desc(median)) |>
+  inner_join(edibnb)
 ```
+
+
+```{r}
+#| label: label-me-1
+ggplot(edibnb_ordered_by_med, aes(x = review_scores_rating, y = neighbourhood, color = neighbourhood)) +
+  geom_density_ridges(alpha = 0.5, scale = 1) +
+  scale_color_brewer(palette = "Set3") +
+  theme_ridges() +
+  labs(x = "Review Score", y = "Neighbourhood", color = "Neighbourhood") +
+  scale_x_continuous(limits = c(80, 105))
+```
+
+The resulting ridge plot shows the distribution of review scores for each neighborhood in Edinburgh, where the neighborhoods are ordered by their median review scores. Each ridge in the plot represents a density estimate of the review scores for a specific neighborhood. The height of the ridge at a particular value on the x-axis represents the estimated density of review scores at that value.
+
+From the plot, we can see that the distributions of review scores vary significantly across neighborhoods. Some neighborhoods have a large number of reviews with scores around 100, indicating a high overall level of satisfaction among guests. On the other hand, some neighborhoods have a wider distribution of scores, indicating a wider range of opinions among guests.
+
+Additionally, the plot shows that some neighborhoods tend to have a higher concentration of high scores, while others tend to have a higher concentration of lower scores. This information can be useful in identifying areas in Edinburgh where Airbnb properties are generally more highly rated by guests and where properties may need improvement in order to compete with others in the same area.
 
 ## 2 - Foreign Connected PACs
 
 ```{r}
 #| label: label-me-2
+# get a list of files with "Foreign Connected PAC" in their names
+list_of_files <- fs::dir_ls(path = "data", regexp = "Foreign Connected PAC")
 
+# read all files and row bind them
+# keeping track of the file name in a new column called year
+pac <- read_csv(list_of_files, id = "year")
 ```
+
+```{r}
+pac <- bind_rows(lapply(list_of_files, function(x) {
+  read_csv(x) %>% 
+    mutate(year = gsub("\\D", "", x))
+}))
+```
+
+
+```{r}
+pac <- pac |>
+  clean_names()
+```
+
+```{r}
+pac <- pac %>% 
+  select(year, pac_name_affiliate, dems, repubs) %>% 
+  mutate(count = dems + repubs) %>% 
+  mutate(dems = ifelse(dems > 0, dems, 0),
+         repubs = ifelse(repubs > 0, repubs, 0)) %>% 
+  pivot_longer(cols = c(dems, repubs), names_to = "party", values_to = "amount") %>% 
+  filter(party %in% c("dems", "repubs")) %>% 
+  mutate(party = ifelse(party == "dems", "Democrat", "Republican"))
+```
+
+
+```{r}
+pac_tidied <- pac_cleaned %>%
+  pivot_longer(cols = c(dems, repubs), names_to = "party", values_to = "amount") %>%
+  mutate(party = ifelse(party == "dems", "Democrat", "Republican")) %>%
+  select(year, country_of_origin, party, amount) %>%
+  filter(country_of_origin == "UK") %>%
+  group_by(year, party) %>%
+  summarize(total_amount = sum(amount))
+```
+
 
 ## 3 - Hop on
 
 
 ## 4 - Expect More. Plot More.
+```{r}
+target_red <- "#CC0000"
+```
+
+```{r}
+df <- tibble(x = c(0.5, 0.5), y = c(0.5, 0.9), fill = c(target_red, "white"))
+```
+
+```{r}
+ggplot(df) +
+  geom_rect(aes(xmin = 0.4, xmax = 0.6, ymin = 0.4, ymax = 0.9), fill = target_red, color = "black") +
+  geom_rect(aes(xmin = 0.5, xmax = 0.55, ymin = 0.5, ymax = 0.9), fill = "white") +
+  theme_void() +
+  scale_x_continuous(limits = c(0, 1), expand = c(0,0)) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0,0)) +
+  coord_fixed(ratio = 1)
+```
 
 
 ## 5 - Mirror, mirror on the wall, who’s the ugliest of them all?
+```{r}
+data(penguins)
+
+ggplot(penguins, aes(x = bill_depth_mm, y = flipper_length_mm)) +
+geom_point(color = "red", size = 5) +
+  ggtitle("Flipper Length vs. Bill Depth of Penguins") +
+  xlab("Bill Depth (mm)") +
+  ylab("Flipper Length (mm)") +
+  theme_classic() +
+  theme(plot.title = element_text(color = "purple", face = "bold"),
+        axis.title = element_text(color = "blue"),
+        axis.text = element_text(color = "orange", size = 10, face = "bold"),
+        panel.background = element_rect(fill = "green"),
+        panel.grid.major = element_line(color = "pink"),
+        panel.grid.minor = element_line(color = "pink"),
+        plot.background = element_rect(fill = "yellow"))
+```
+
