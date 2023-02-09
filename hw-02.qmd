@@ -16,33 +16,68 @@ library(dsbox)
 library(palmerpenguins)
 library(janitor)
 library(ggforce)
+library(forcats)
 ```
 
 ## 1 - A new day, a new plot, a new geom
 
-```{r}
-data(edibnb)
-edibnb_ordered_by_med <- edibnb |>
-  group_by(neighbourhood) |>
-  summarize(median = median(review_scores_rating)) |>
-  arrange(desc(median)) |>
-  inner_join(edibnb)
-```
 
 
 ```{r}
 #| label: label-me-1
-ggplot(edibnb_ordered_by_med, aes(x = review_scores_rating, y = neighbourhood, color = neighbourhood)) +
+
+data(edibnb)
+edibnb_ordered_by_med <- edibnb |>
+  filter(!is.na(review_scores_rating)) |>
+  filter(!is.na(neighbourhood)) |>
+  group_by(neighbourhood) |>
+  summarize(median = median(review_scores_rating)) |>
+  arrange(desc(median)) |>
+  inner_join(edibnb)
+
+edibnb_ordered_by_med <- edibnb_ordered_by_med |>
+  filter(!is.na(review_scores_rating)) |>
+  filter(!is.na(neighbourhood))
+ggplot(edibnb_ordered_by_med, aes(x = review_scores_rating, y = fct_reorder2(neighbourhood, .x = review_scores_rating, .y =  median), fill = neighbourhood)) +
   geom_density_ridges(alpha = 0.5, scale = 1) +
   scale_color_brewer(palette = "Set3") +
   theme_ridges() +
   labs(x = "Review Score", y = "Neighbourhood", color = "Neighbourhood") +
-  scale_x_continuous(limits = c(80, 105))
+  theme(legend.position = "none")
+```
+
+```{r}
+library(forcats)
+data(edibnb)
+
+edibnb_ordered_by_med <- edibnb_ordered_by_med |>
+  filter(!is.na(review_scores_rating)) |>
+  filter(!is.na(neighbourhood))
+
+edibnb_medians <- edibnb_ordered_by_med |>
+  group_by(neighbourhood) |>
+  summarize(median = median(review_scores_rating)) |>
+  arrange(desc(median))
+
+edibnb_ordered_by_med <- edibnb_ordered_by_med |>
+  inner_join(edibnb_medians, by = c("neighbourhood"))
+
+edibnb_ordered_by_med$neighbourhood <- fct_reorder(edibnb_ordered_by_med$neighbourhood, edibnb_medians$median)
+
+ggplot(edibnb_ordered_by_med, aes(x = review_scores_rating, y = neighbourhood, fill = neighbourhood)) +
+  geom_density_ridges(alpha = 0.5, scale = 1) +
+  scale_color_brewer(palette = "Set3") +
+  theme_ridges() +
+  labs(x = "Review Score", y = "Neighbourhood", color = "Neighbourhood") +
+  theme(legend.position = "none")
+
+
+
 ```
 
 The resulting ridge plot shows the distribution of review scores for each neighborhood in Edinburgh, where the neighborhoods are ordered by their median review scores. Each ridge in the plot represents a density estimate of the review scores for a specific neighborhood. The height of the ridge at a particular value on the x-axis represents the estimated density of review scores at that value.
 
-From the plot, we can see that the distributions of review scores vary significantly across neighborhoods. Some neighborhoods have a large number of reviews with scores around 100, indicating a high overall level of satisfaction among guests. On the other hand, some neighborhoods have a wider distribution of scores, indicating a wider range of opinions among guests.
+From the plot, we can see that the distributions of review scores vary significantly across neighborhoods. Some neighborhoods have a large number of reviews with scores around 100, such as the Morningside neighbourhood, indicating a high overall level of satisfaction among guests. On the other hand, some neighborhoods have a wider distribution of scores, such as the Old Town neighbourhood, indicating a wider range of opinions among guests.
 
 Additionally, the plot shows that some neighborhoods tend to have a higher concentration of high scores, while others tend to have a higher concentration of lower scores. This information can be useful in identifying areas in Edinburgh where Airbnb properties are generally more highly rated by guests and where properties may need improvement in order to compete with others in the same area.
 
@@ -74,10 +109,10 @@ pac <- pac |>
 
 
 ```{r}
-pac <- pac %>%
-  pivot_longer(cols = c("dems", "repubs"), names_to = "party", values_to = "amount") %>%
-  mutate(amount = as.numeric(gsub("\\$", "", amount))) %>%
-  mutate(total = as.numeric(gsub("\\$", "", total))) %>%
+pac <- pac |>
+  pivot_longer(cols = c("dems", "repubs"), names_to = "party", values_to = "amount") |>
+  mutate(amount = as.numeric(gsub("\\$", "", amount))) |>
+  mutate(total = as.numeric(gsub("\\$", "", total))) |>
   mutate(party = ifelse(party == "dems", "Democrat", "Republican"))
 ```
 
@@ -87,63 +122,57 @@ pacUK <- pac |>
   group_by(year, party) |>
   summarize(total_amount = sum(amount))
 
-pacUK$year <- as.character(pacUK$year)
+pacUK$year <- as.numeric(pacUK$year)
 ```
 
-```{r}
-library(ggplot2)
-
-ggplot(pacUK, aes(x = year, y = total_amount, color = party, group = party)) +
-  geom_line(size = 1) +
-  scale_color_manual(values = c("Republican" = "red", "Democrat" = "blue")) +
-  ggtitle("Total Contributions to US Political Parties from UK-Connected PACs") +
-  xlab("Year") +
-  ylab("Amount")
-```
 
 ```{r}
 ggplot(pacUK, aes(x = year, y = total_amount, color = party, group = party)) +
   geom_line(size = 1) +
   scale_color_manual(values = c("Republican" = "red", "Democrat" = "blue")) +
-  ggtitle("Total Contributions to US Political Parties from UK-Connected PACs") +
-  xlab("Year") +
-  ylab("Amount") +
-  annotate("text", x = 0.98, y = 0.02, hjust = 1, vjust = 0,
-           label = "Source: OpenSecrets.org",
-           color = "grey", size = 3, parse = TRUE) +
-  labs(color = "Party") +
-  scale_y_continuous(limits = c(700000, NA), 
+  labs(color = "Party", 
+       title = "Contributions to US political partifies from UK-connected PACs", 
+       x = "Year", 
+       y = "Total amount",
+       caption = "Source: OpenSecrets.org") +
+  scale_y_continuous(limits = c(950000, NA), 
                      labels = c("$1M", "$2M", "$3M"), 
                      breaks = c(1e6, 2e6, 3e6)) +
-  theme_minimal() +
-  theme(axis.line.y = element_line(color = "black"),
-        axis.text.y = element_text(color = "black", size = 10, vjust = 0.3, hjust = 0.5),
-        axis.text.x = element_text(color = "black", size = 10, vjust = 0.5, hjust = 0.5),
-        axis.title.y = element_text(color = "black", size = 12, vjust = 0, hjust = 0.5),
-        axis.title.x = element_text(color = "black", size = 12, vjust = 1, hjust = 0.5),
-        plot.margin = unit(c(1,1,1,1), "cm"))
-
-```
-
-```{r}
-ggplot(pacUK, aes(x = year, y = total_amount, color = party, group = party)) +
-  geom_line(size = 1) +
-  scale_color_manual(values = c("Republican" = "red", "Democrat" = "blue")) +
-  ggtitle("Total Contributions to US Political Parties from UK-Connected PACs") +
-  xlab("Year") +
-  ylab("Total amount") +
-  annotate("text", x = 0.98, y = 0.02, hjust = 1, vjust = 0,
-           label = "Source: OpenSecrets.org",
-           color = "grey", size = 3, parse = TRUE) +
-  labs(color = "Party") +
-  scale_y_continuous(limits = c(700000, NA), 
-                     labels = c("$1M", "$2M", "$3M"), 
-                     breaks = c(1e6, 2e6, 3e6)) +
-  scale_x_discrete(breaks = c(2000, 2010, 2020)) +
   theme_minimal() + 
   theme(axis.title.x = element_text(hjust = 0),
-        axis.title.y = element_text(hjust = 0))
+        axis.title.y = element_text(hjust = 0),
+        legend.position = c(0.9, 0.17),
+        plot.caption = element_text(color = "black"))
 ```
+
+```{r}
+pacCanada <- pac |>
+  filter(country_of_origin == "Canada") |>
+  group_by(year, party) |>
+  summarize(total_amount = sum(amount))
+
+pacCanada$year <- as.numeric(pacCanada$year)
+```
+
+```{r}
+ggplot(pacCanada, aes(x = year, y = total_amount, color = party, group = party)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("Republican" = "red", "Democrat" = "blue")) +
+  labs(color = "Party", 
+       title = "Contributions to US political partifies from Canada-connected PACs", 
+       x = "Year", 
+       y = "Total amount",
+       caption = "Source: OpenSecrets.org") +
+  theme_minimal() + 
+  theme(axis.title.x = element_text(hjust = 0),
+        axis.title.y = element_text(hjust = 0),
+        legend.position = c(0.9, 0.17),
+        plot.caption = element_text(color = "black"))
+```
+
+This plot shows the total contributions to US political parties from Canada-connected Political Action Committees (PACs) over the years. The data is visualized using two line graphs, one for each of the two major US political parties, the Republicans and the Democrats, with the x-axis showing the year and the y-axis showing the total amount of contributions. The two lines are color-coded, with the Republicans being red and the Democrats being blue. 
+
+Here, you can see that the the total contributions to both US political parties from Canada-connected PACs has increased over time since 2000. Particulary, the was a relatively sharp increasein dnations to both parties between the years 2014 and 2018. Just after 2010, the total contributions to the republican party became consistenly higher than those for the Democratic party for every year since then.
 
 ## 3 - Hop on
 ```{r}
@@ -188,76 +217,72 @@ rdu_flights_planes <- rdu_flights_planes |>
 ```
 
 ```{r}
-#current
 rdu_flights_planes <- rdu_flights_planes |>
-  mutate(
-    size = fct_relevel(size, "Jumbo", "Large", "Medium", "Small"),
-    size_emoji = case_when(
-      size == "Jumbo" ~ "✈",
-      size == "Large" ~ "✈️️",
-      size == "Medium" ~ "✈️",
-      size == "Small"   ~ "✈️"
-    ))
-```
-
-```{r}
-#suggested on slack
-rdu_flights_planes <- rdu_flights_planes %>%
-  mutate(text = ifelse(size == "jumbo", "✈",
-                      ifelse(size == "large", "✈",
-                             ifelse(size == "medium", "✈", "✈"))))
-
+    mutate(
+    pointsize = case_when(
+      size == "Jumbo" ~ 32,
+      size == "Large" ~ 24,
+      size == "Medium" ~ 16,
+      size == "Small" ~ 8))
 ```
 
 
 ```{r}
 #slack suggested
+rdu_flights_planes$size <- factor(rdu_flights_planes$size, levels = c("Small", "Medium", "Large", "Jumbo"))
+
 ggplot(rdu_flights_planes, aes(x = Numberofflights, y = size)) +
-  geom_point(aes(size = size, shape = "✈")) +
-  scale_size_manual(values = c(4, 8, 12, 16)) +
   geom_segment(aes(
     x = 0,
     xend = Numberofflights,
     y = size,
     yend = size
-  ), color = "#65B5E6") + 
-  geom_text(aes(x = 0, y = size, label = text), hjust = -0.2) +
+  ), color = "#65B5E6", size = 1) +
+  geom_text(aes(size = pointsize), label = "✈️") +
   theme_minimal() +
   labs(title = "Number of flights out of RDU in 2020",
        subtitle = "By size of plane",
        x = "Number of flights",
        y = "Plane size",
        caption = "Source: FAA Aircraft Registry and \n Bureau of Transportation Statistics") +
-  scale_y_discrete(limits = c("jumbo", "large", "medium", "small"))
+  scale_y_discrete() +
+  guides(size = FALSE)
+
 
 ```
 
+
+
+As seen from the plot, the majority of the flights out of RDU were taken with either a medium or large sized flight, with the most frequent flight size being a "Large" flight. According to the paramters I chose, the "Jumbo" sized flights are the most infrequent, as there were less than 2500 of those flight going out of RDU in 2020.
 
 ```{r}
-ggplot(rdu_flights_planes, aes(x = Numberofflights, y = size_emoji)) +
-  geom_point(aes(size = size_emoji)) +
-  scale_size_manual(values = c(4, 8, 12, 16)) +
-  geom_segment(aes(
-    x = 0,
-    xend = Numberofflights,
-    y = size,
-    yend = size
-  ), color = "#65B5E6") + 
-  theme_minimal() +
-  labs(title = "Number of flights out of RDU in 2020",
-       subtitle = "By size of plane",
-       x = "Number of flights",
-       y = "Plane size",
-       caption = "Source: FAA Aircraft Registry and \n Bureau of Transportation Statistics") +
-  scale_y_discrete(limits = c("jumbo", "large", "medium", "small"))
+rdu_flights_planes2 <- merge(flights_data, planes_data, by="tailnum")
 
-
+rdu_flights_planes2 <- rdu_flights_planes2 |>
+  mutate(size = case_when(
+      seats <= 60 ~ "Small",
+      seats > 60 & seats <= 120 ~ "Medium",
+      seats > 120 & seats <= 210 ~ "Large",
+      seats > 210 ~ "Jumbo"))
 ```
 
+```{r}
+ggplot(rdu_flights_planes2, aes(x = size, y = air_time)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Distribution of air times for each size of plane",
+       x = "Plane size",
+       y = "Average air time (in minutes)") +
+  scale_x_discrete() +
+  guides(size = FALSE)
+```
+
+From the graph we can see that the median air time is longest for Large planes, and actually smallest for Jumbo sized planes. It should be noted, however, that there exists many outliers in the distribution of air times for Jumbo sized plane. Aside from the unusual case of the Jumbo sized plane, it would seem that as the larger plane sizes typically have more air time per journey. There is also a much larger interquartile range in the air times for the large planes compared to its smaller plane counterparts.
 
 ## 4 - Expect More. Plot More.
 ```{r}
-target_red <- "#CC0000"
+library(showtext)
+font_families()
 ```
 
 ```{r}
@@ -269,18 +294,9 @@ df <- data.frame(x = 0, y = 0, r = c(0.5, 0.22), fill = c("#CC0000", "#CC0000"))
 # Plot the circles using geom_circle
 ggplot(df, aes(x0 = x, y0 = y, r = r, fill = fill)) +
   geom_circle(color = "white", size = 22) +
-  scale_fill_identity() +
-  coord_fixed() +
-  theme_void() +
-  theme(legend.position = "none", axis.line = element_blank(),
-        axis.text = element_blank(), axis.ticks = element_blank(),
-        axis.title = element_blank())
-```
-
-```{r}
-ggplot(df, aes(x0 = x, y0 = y, r = r, fill = fill)) +
-  geom_circle(color = "white", size = 22) +
-  geom_text(x = 0, y = -0.5, label = "TARGET", size = 14, hjust = 0.5, family = "Helvetica") +
+  geom_text(x = 0, y = -0.5, label = "TARGET", size = 14, hjust = 0.5, color = "#CC0000") +
+  geom_rect(xmin = 0.25, xmax = 0.35, ymin = -0.56, ymax = -0.5, fill = "white", color = "#CC0000", size = 1) +
+  geom_text(x = 0.3, y = -0.53, label = "R", size = 7, hjust = 0.5, color = "#CC0000") +
   scale_fill_identity() +
   coord_fixed() +
   theme_void() +
