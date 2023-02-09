@@ -46,34 +46,7 @@ ggplot(edibnb_ordered_by_med, aes(x = review_scores_rating, y = fct_reorder2(nei
   theme(legend.position = "none")
 ```
 
-```{r}
-library(forcats)
-data(edibnb)
 
-edibnb_ordered_by_med <- edibnb_ordered_by_med |>
-  filter(!is.na(review_scores_rating)) |>
-  filter(!is.na(neighbourhood))
-
-edibnb_medians <- edibnb_ordered_by_med |>
-  group_by(neighbourhood) |>
-  summarize(median = median(review_scores_rating)) |>
-  arrange(desc(median))
-
-edibnb_ordered_by_med <- edibnb_ordered_by_med |>
-  inner_join(edibnb_medians, by = c("neighbourhood"))
-
-edibnb_ordered_by_med$neighbourhood <- fct_reorder(edibnb_ordered_by_med$neighbourhood, edibnb_medians$median)
-
-ggplot(edibnb_ordered_by_med, aes(x = review_scores_rating, y = neighbourhood, fill = neighbourhood)) +
-  geom_density_ridges(alpha = 0.5, scale = 1) +
-  scale_color_brewer(palette = "Set3") +
-  theme_ridges() +
-  labs(x = "Review Score", y = "Neighbourhood", color = "Neighbourhood") +
-  theme(legend.position = "none")
-
-
-
-```
 
 The resulting ridge plot shows the distribution of review scores for each neighborhood in Edinburgh, where the neighborhoods are ordered by their median review scores. Each ridge in the plot represents a density estimate of the review scores for a specific neighborhood. The height of the ridge at a particular value on the x-axis represents the estimated density of review scores at that value.
 
