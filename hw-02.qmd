@@ -15,6 +15,7 @@ library(glue)
 library(dsbox)
 library(palmerpenguins)
 library(janitor)
+library(ggforce)
 ```
 
 ## 1 - A new day, a new plot, a new geom
@@ -57,12 +58,6 @@ list_of_files <- fs::dir_ls(path = "data", regexp = "Foreign Connected PAC")
 pac <- read_csv(list_of_files, id = "year")
 ```
 
-```{r}
-pac <- bind_rows(lapply(list_of_files, function(x) {
-  read_csv(x) %>% 
-    mutate(year = gsub("\\D", "", x))
-}))
-```
 
 
 ```{r}
@@ -71,29 +66,193 @@ pac <- pac |>
 ```
 
 ```{r}
-pac <- pac %>% 
-  select(year, pac_name_affiliate, dems, repubs) %>% 
-  mutate(count = dems + repubs) %>% 
-  mutate(dems = ifelse(dems > 0, dems, 0),
-         repubs = ifelse(repubs > 0, repubs, 0)) %>% 
-  pivot_longer(cols = c(dems, repubs), names_to = "party", values_to = "amount") %>% 
-  filter(party %in% c("dems", "repubs")) %>% 
-  mutate(party = ifelse(party == "dems", "Democrat", "Republican"))
+pac <- pac |>
+  mutate(year = str_sub(year, start = 35, end = 38)) |>
+  mutate(country_of_origin = sub("/.*", "", country_of_origin_parent_company),
+         parent_company = sub(".*/", "", country_of_origin_parent_company))
 ```
 
 
 ```{r}
-pac_tidied <- pac_cleaned %>%
-  pivot_longer(cols = c(dems, repubs), names_to = "party", values_to = "amount") %>%
-  mutate(party = ifelse(party == "dems", "Democrat", "Republican")) %>%
-  select(year, country_of_origin, party, amount) %>%
-  filter(country_of_origin == "UK") %>%
-  group_by(year, party) %>%
+pac <- pac %>%
+  pivot_longer(cols = c("dems", "repubs"), names_to = "party", values_to = "amount") %>%
+  mutate(amount = as.numeric(gsub("\\$", "", amount))) %>%
+  mutate(total = as.numeric(gsub("\\$", "", total))) %>%
+  mutate(party = ifelse(party == "dems", "Democrat", "Republican"))
+```
+
+```{r}
+pacUK <- pac |>
+  filter(country_of_origin == "UK") |>
+  group_by(year, party) |>
   summarize(total_amount = sum(amount))
+
+pacUK$year <- as.character(pacUK$year)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(pacUK, aes(x = year, y = total_amount, color = party, group = party)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("Republican" = "red", "Democrat" = "blue")) +
+  ggtitle("Total Contributions to US Political Parties from UK-Connected PACs") +
+  xlab("Year") +
+  ylab("Amount")
+```
+
+```{r}
+ggplot(pacUK, aes(x = year, y = total_amount, color = party, group = party)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("Republican" = "red", "Democrat" = "blue")) +
+  ggtitle("Total Contributions to US Political Parties from UK-Connected PACs") +
+  xlab("Year") +
+  ylab("Amount") +
+  annotate("text", x = 0.98, y = 0.02, hjust = 1, vjust = 0,
+           label = "Source: OpenSecrets.org",
+           color = "grey", size = 3, parse = TRUE) +
+  labs(color = "Party") +
+  scale_y_continuous(limits = c(700000, NA), 
+                     labels = c("$1M", "$2M", "$3M"), 
+                     breaks = c(1e6, 2e6, 3e6)) +
+  theme_minimal() +
+  theme(axis.line.y = element_line(color = "black"),
+        axis.text.y = element_text(color = "black", size = 10, vjust = 0.3, hjust = 0.5),
+        axis.text.x = element_text(color = "black", size = 10, vjust = 0.5, hjust = 0.5),
+        axis.title.y = element_text(color = "black", size = 12, vjust = 0, hjust = 0.5),
+        axis.title.x = element_text(color = "black", size = 12, vjust = 1, hjust = 0.5),
+        plot.margin = unit(c(1,1,1,1), "cm"))
+
+```
+
+```{r}
+ggplot(pacUK, aes(x = year, y = total_amount, color = party, group = party)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("Republican" = "red", "Democrat" = "blue")) +
+  ggtitle("Total Contributions to US Political Parties from UK-Connected PACs") +
+  xlab("Year") +
+  ylab("Total amount") +
+  annotate("text", x = 0.98, y = 0.02, hjust = 1, vjust = 0,
+           label = "Source: OpenSecrets.org",
+           color = "grey", size = 3, parse = TRUE) +
+  labs(color = "Party") +
+  scale_y_continuous(limits = c(700000, NA), 
+                     labels = c("$1M", "$2M", "$3M"), 
+                     breaks = c(1e6, 2e6, 3e6)) +
+  scale_x_discrete(breaks = c(2000, 2010, 2020)) +
+  theme_minimal() + 
+  theme(axis.title.x = element_text(hjust = 0),
+        axis.title.y = element_text(hjust = 0))
+```
+
+## 3 - Hop on
+```{r}
+flights_data <- read.csv("data/rdu-flights-2020.csv")
+planes_data <- read.csv("data/rdu-planes-2020.csv")
+
+rdu_flights_planes <- merge(flights_data, planes_data, by="tailnum")
+
+dim(rdu_flights_planes)
 ```
 
 
-## 3 - Hop on
+```{r}
+ggplot(rdu_flights_planes, aes(x = seats)) +
+  geom_histogram() + 
+  geom_vline(xintercept = c(60, 120, 210)) +
+  xlab("Number of seats on a plane")
+```
+
+Based on the histogram above, we can see four discernible categories, with the lines showing the breaks between them. 
+
+```{r}
+# Create the size variable
+rdu_flights_planes <- rdu_flights_planes |>
+  mutate(size = case_when(
+      seats <= 60 ~ "Small",
+      seats > 60 & seats <= 120 ~ "Medium",
+      seats > 120 & seats <= 210 ~ "Large",
+      seats > 210 ~ "Jumbo"))
+
+# Justify the cutoffs used
+cat("Small: Planes with fewer than 60 seats\n")
+cat("Medium: Planes with between 61 and 120 seats\n")
+cat("Large: Planes with between 121 and 250 seats\n")
+cat("Jumbo: Planes with over 250 seats\n")
+```
+
+```{r}
+rdu_flights_planes <- rdu_flights_planes |>
+  group_by(size) |>
+  summarize(Numberofflights = n()) 
+```
+
+```{r}
+#current
+rdu_flights_planes <- rdu_flights_planes |>
+  mutate(
+    size = fct_relevel(size, "Jumbo", "Large", "Medium", "Small"),
+    size_emoji = case_when(
+      size == "Jumbo" ~ "✈",
+      size == "Large" ~ "✈️️",
+      size == "Medium" ~ "✈️",
+      size == "Small"   ~ "✈️"
+    ))
+```
+
+```{r}
+#suggested on slack
+rdu_flights_planes <- rdu_flights_planes %>%
+  mutate(text = ifelse(size == "jumbo", "✈",
+                      ifelse(size == "large", "✈",
+                             ifelse(size == "medium", "✈", "✈"))))
+
+```
+
+
+```{r}
+#slack suggested
+ggplot(rdu_flights_planes, aes(x = Numberofflights, y = size)) +
+  geom_point(aes(size = size, shape = "✈")) +
+  scale_size_manual(values = c(4, 8, 12, 16)) +
+  geom_segment(aes(
+    x = 0,
+    xend = Numberofflights,
+    y = size,
+    yend = size
+  ), color = "#65B5E6") + 
+  geom_text(aes(x = 0, y = size, label = text), hjust = -0.2) +
+  theme_minimal() +
+  labs(title = "Number of flights out of RDU in 2020",
+       subtitle = "By size of plane",
+       x = "Number of flights",
+       y = "Plane size",
+       caption = "Source: FAA Aircraft Registry and \n Bureau of Transportation Statistics") +
+  scale_y_discrete(limits = c("jumbo", "large", "medium", "small"))
+
+```
+
+
+```{r}
+ggplot(rdu_flights_planes, aes(x = Numberofflights, y = size_emoji)) +
+  geom_point(aes(size = size_emoji)) +
+  scale_size_manual(values = c(4, 8, 12, 16)) +
+  geom_segment(aes(
+    x = 0,
+    xend = Numberofflights,
+    y = size,
+    yend = size
+  ), color = "#65B5E6") + 
+  theme_minimal() +
+  labs(title = "Number of flights out of RDU in 2020",
+       subtitle = "By size of plane",
+       x = "Number of flights",
+       y = "Plane size",
+       caption = "Source: FAA Aircraft Registry and \n Bureau of Transportation Statistics") +
+  scale_y_discrete(limits = c("jumbo", "large", "medium", "small"))
+
+
+```
 
 
 ## 4 - Expect More. Plot More.
@@ -102,17 +261,32 @@ target_red <- "#CC0000"
 ```
 
 ```{r}
-df <- tibble(x = c(0.5, 0.5), y = c(0.5, 0.9), fill = c(target_red, "white"))
+library(ggplot2)
+
+# Create a data frame for the center, radius, and color of each circle
+df <- data.frame(x = 0, y = 0, r = c(0.5, 0.22), fill = c("#CC0000", "#CC0000"))
+
+# Plot the circles using geom_circle
+ggplot(df, aes(x0 = x, y0 = y, r = r, fill = fill)) +
+  geom_circle(color = "white", size = 22) +
+  scale_fill_identity() +
+  coord_fixed() +
+  theme_void() +
+  theme(legend.position = "none", axis.line = element_blank(),
+        axis.text = element_blank(), axis.ticks = element_blank(),
+        axis.title = element_blank())
 ```
 
 ```{r}
-ggplot(df) +
-  geom_rect(aes(xmin = 0.4, xmax = 0.6, ymin = 0.4, ymax = 0.9), fill = target_red, color = "black") +
-  geom_rect(aes(xmin = 0.5, xmax = 0.55, ymin = 0.5, ymax = 0.9), fill = "white") +
+ggplot(df, aes(x0 = x, y0 = y, r = r, fill = fill)) +
+  geom_circle(color = "white", size = 22) +
+  geom_text(x = 0, y = -0.5, label = "TARGET", size = 14, hjust = 0.5, family = "Helvetica") +
+  scale_fill_identity() +
+  coord_fixed() +
   theme_void() +
-  scale_x_continuous(limits = c(0, 1), expand = c(0,0)) +
-  scale_y_continuous(limits = c(0, 1), expand = c(0,0)) +
-  coord_fixed(ratio = 1)
+  theme(legend.position = "none", axis.line = element_blank(),
+        axis.text = element_blank(), axis.ticks = element_blank(),
+        axis.title = element_blank())
 ```
 
 
