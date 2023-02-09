@@ -292,20 +292,27 @@ ggplot(df, aes(x0 = x, y0 = y, r = r, fill = fill)) +
 
 ## 5 - Mirror, mirror on the wall, who’s the ugliest of them all?
 ```{r}
-data(penguins)
-
-ggplot(penguins, aes(x = bill_depth_mm, y = flipper_length_mm)) +
-geom_point(color = "red", size = 5) +
+ggplot(penguins, aes(x = bill_depth_mm, y = flipper_length_mm, color = species, shape = as.factor(year))) +
+  geom_point(size = 6) +
+  geom_smooth(color = "orange") +
+  geom_line(color = "purple") +
   ggtitle("Flipper Length vs. Bill Depth of Penguins") +
   xlab("Bill Depth (mm)") +
   ylab("Flipper Length (mm)") +
   theme_classic() +
-  theme(plot.title = element_text(color = "purple", face = "bold"),
-        axis.title = element_text(color = "blue"),
-        axis.text = element_text(color = "orange", size = 10, face = "bold"),
+  theme(plot.title = element_text(color = "purple", size = 8, face = "bold"),
+        axis.title = element_text(color = "blue", size = 30),
+        axis.text = element_text(color = "orange", size = 40, face = "bold"),
         panel.background = element_rect(fill = "green"),
         panel.grid.major = element_line(color = "pink"),
         panel.grid.minor = element_line(color = "pink"),
-        plot.background = element_rect(fill = "yellow"))
+        plot.background = element_rect(fill = "yellow")) +
+  facet_wrap(~ sex) +
+  scale_color_discrete() +
+  scale_shape_discrete()
+
+options(warn = 0)
+
+knitr::opts_chunk$set(warnings = FALSE, message = FALSE)
 ```
 
